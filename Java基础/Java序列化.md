@@ -12,7 +12,7 @@
 - 由于**static**代表类的成员,**transient**代表对象的临时数据,因此被声明为这两类的数据成员是不能被序列化的
 - 子类实现了序列化接口,父类没有,父类中的属性不能序列化,但子类中的属性仍可以正确序列化
 
-#### Extend
+#### Externalizable
 
 ​        Externalizable接口extends Serializable接口，支持自定义序列化与反序列化操作,而且在其基础上增加了两个方法：writeExternal()和readExternal()。这两个方法会在序列化和反序列化还原的过程中被自动调用，以便执行一些特殊的操作。
 
