@@ -1,0 +1,404 @@
+### docker及docker-compose的安装
+
+[centos发行版安装](https://docs.docker.com/engine/install/centos/)：https://docs.docker.com/engine/install/centos/
+
+执行以下命令即可
+
+```sh
+# 安装yum-utils工具并设置docker仓库 
+sudo yum install -y yum-utils 
+
+# 设置docker仓库
+sudo yum-config-manager \
+    --add-repo \
+    https://download.docker.com/linux/centos/docker-ce.repo
+
+#安装docker 
+sudo yum install docker-ce docker-ce-cli containerd.io docker-compose-plugin
+#启动docker服务
+service docker start
+
+
+# 下载docker-compose文件
+curl -L https://get.daocloud.io/docker/compose/releases/download/1.29.1/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
+
+# 赋予执行权限
+sudo chmod +x /usr/local/bin/docker-compose
+
+# 多个容器内共享网络测试-步骤：
+# 1.以交互模式分别进入redis和mysql两个容器，下面以mysql为例
+docker exec -it mysql /bin/bash
+# 2.如果容器内中无 ping 命令,在容器内执行以下命令安装 ping
+apt-get update
+apt install iputils-ping
+# 3.通过容器名ping另外一个容器即可
+ping redis
+```
+
+### spring-boot应用
+```yaml
+version: '2'
+services:
+    hello:
+        network_mode: "bridge"
+        command: java -jar /home/apps/hello.jar
+        image: "java:8"
+        restart: always
+        volumes:
+            - "./apps:/home/apps"
+        ports:
+            - "8080:8080"
+```
+
+### MySQL
+
+docker-compose.yml
+
+```yaml
+version: '2'
+services:
+    mysql:
+        network_mode: "bridge"
+        environment:
+            MYSQL_ROOT_PASSWORD: "123456"
+            MYSQL_USER: 'test'
+            MYSQL_PASS: '1111'
+        image: "mysql:5.7"
+        restart: always
+        volumes:
+            - "./db:/var/lib/mysql"
+            - "./conf/my.cnf:/etc/my.cnf"
+            - "./init:/docker-entrypoint-initdb.d/"
+        ports:
+            - "3306:3306"
+```
+
+my.cnf
+
+```text
+[mysqld]
+user=mysql
+default-storage-engine=INNODB
+character-set-server=utf8mb4
+max_allowed_packet=10485760
+[client]
+default-character-set=utf8mb4
+[mysql]
+default-character-set=utf8mb4
+```
+
+### Jenkins
+
+docker-compose.yml
+
+```yaml
+version: '3'
+services:                                      # 集合
+  docker_jenkins:
+    user: root                                 # 为了避免一些权限问题 在这我使用了root
+    restart: always                            # 重启方式
+    image: jenkins/jenkins:lts                 # 指定服务所使用的镜像 在这里我选择了 LTS (长期支持)
+    container_name: jenkins                    # 容器名称
+    ports:                                     # 对外暴露的端口定义
+      - 80:8080                              # 访问Jenkins服务端口
+      - 50000:50000
+    volumes:                                   # 卷挂载路径
+      - /home/jenkins/jenkins_home/:/var/jenkins_home  # 这是我们一开始创建的目录挂载到容器内的jenkins_home目录
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker                # 这是为了我们可以在容器内使用docker命令
+      - /usr/local/bin/docker-compose:/usr/local/bin/docker-compose
+      - /home/maven:/home/maven      # maven目录包含settings配置及仓库地址
+```
+
+**jenkins插件**安装推荐,系统管理->插件管理
+
+| 插件名称                     | 描述                                              |
+| ---------------------------- | ------------------------------------------------- |
+| SSH plugin                   | 可用Jenkins通过ssh协议在远程服务器上执行shell脚本 |
+| SSH server                   | 配置Jenkins所需访问的服务器                       |
+| SSH Credentials Plugin       | ssh登录认证插件                                   |
+| Publish Over SSH             | 可利用ssh上传jar包到远程服务器                    |
+| Parameterized Trigger plugin | 支持在任务执行完后通过参数触发新的job             |
+
+### Redis
+
+#### 单机模式
+
+docker-compose.yml
+
+```yaml
+version: '2'
+services:
+  master:
+    image: redis        ## 镜像
+    container_name: redis-single       ##容器别名
+    command: redis-server --save 900 1 --save 300 10 --save 10 10000  --requirepass 123456 ##redis密码
+    # command: redis-server /etc/redis/redis.conf
+    restart: always
+    ports:
+        - "6379:6379"              ##暴露端口
+    volumes:
+        - ./redis.conf:/etc/redis/redis.conf
+        - ./data:/data
+```
+
+#### 哨兵
+
+redis服务(一主二从)docker-compose.yml(**该配置存在问题:启动一段时间后会疯狂占用消耗硬件资源,暂未查出原因,不可照搬使用**)
+
+```yaml
+version: '2'
+services:
+  master:
+    image: redis        ## 镜像
+    container_name: redis-master       ##容器别名
+    command: redis-server --save 900 1 --save 300 10 --save 10 10000  --requirepass 123456 ##redis密码
+    #    restart: always
+    ports:
+        - "6379:6379"              ##暴露端口
+    volumes:
+        - ./redis.conf:/etc/redis/redis.conf
+        - ./data/6379/data:/data
+#    networks:
+#        - sentinel-master
+  slave1:
+    image: redis
+    container_name: redis-slave-1
+    #    restart: always
+    ports:
+        - "6380:6379"
+    command: redis-server --save 900 1 --save 300 10 --save 10 10000  --slaveof redis-master 6379 
+                         --requirepass 123456 --masterauth 123456 
+    depends_on:
+        - master
+    volumes:
+        - ./redis.conf:/etc/redis/redis.conf
+        - ./data/6380/data:/data
+#    networks:
+#        - sentinel-master
+  slave2:
+    image: redis
+    container_name: redis-slave-2
+    # restart: always
+    ports:
+        - "6381:6379"
+    command: redis-server --slaveof redis-master 6379 --save 900 1 --save 300 10 --save 10 10000 
+                         --requirepass 123456 --masterauth 123456
+    depends_on:
+        - master
+    volumes:
+        - ./redis.conf:/etc/redis/redis.conf
+        - ./data/6381/data:/data
+```
+
+三哨兵docker-compose.yml
+
+```yaml
+version: '2'
+services:
+  sentinel1:
+    image: redis       ## 镜像
+    container_name: redis-sentinel-1
+    #    restart: always
+    ports:
+        - "26379:26379"
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+        - "./sentinel1.conf:/usr/local/etc/redis/sentinel.conf"
+  sentinel2:
+    image: redis                ## 镜像
+    container_name: redis-sentinel-2
+    #    restart: always
+    ports:
+        - "26380:26379"           
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+        - "./sentinel2.conf:/usr/local/etc/redis/sentinel.conf"
+  sentinel3:
+    image: redis                ## 镜像
+    container_name: redis-sentinel-3
+    #    restart: always
+    ports:
+        - "26381:26379"           
+    command: redis-sentinel /usr/local/etc/redis/sentinel.conf
+    volumes:
+        - ./sentinel3.conf:/usr/local/etc/redis/sentinel.conf
+networks:
+  default:
+    external:
+      name: service_default
+```
+
+sentinel.conf
+
+```properties
+port 26379
+dir "/tmp"
+#172.18.0.3填写自己的主节点ip
+sentinel myid 3af80a2d2e356259870dcee86ec4c924cc06097b
+sentinel deny-scripts-reconfig yes
+sentinel monitor mymaster 172.18.0.4 6379 2
+sentinel failover-timeout mymaster 10000
+sentinel auth-pass mymaster 123456
+sentinel config-epoch mymaster 10
+```
+
+### zookeeper
+
+```yaml
+version: '2'
+services:
+    zoo1:
+        image: zookeeper
+        restart: always
+        container_name: zoo1
+        ports:
+             - 2181:2181
+        volumes:
+             - ./zoo1/data:/data
+             - ./zoo1/datalog:/datalog
+        environment:
+             ZOO_MY_ID: 1
+             ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
+    zoo2:
+        image: zookeeper
+        restart: always
+        container_name: zoo2
+        ports:
+             - 2182:2181
+        volumes:
+             - ./zoo2/data:/data
+             - ./zoo2/datalog:/datalog
+        environment:
+             ZOO_MY_ID: 2
+             ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
+    zoo3:
+        image: zookeeper
+        restart: always
+        container_name: zoo3
+        ports:
+             - 2183:2181
+        volumes:        
+             - ./zoo3/data:/dada        
+             - ./zoo3/datalog:/datalog
+                                 
+        environment:
+             ZOO_MY_ID: 3 
+             ZOO_SERVERS: server.1=zoo1:2888:3888;2181 server.2=zoo2:2888:3888;2181 server.3=zoo3:2888:3888;2181
+```
+
+### RocketMQ
+
+```yaml
+version: '3.5'
+services: 
+  rmqnamesrv: 
+    image: foxiswho/rocketmq:server
+    container_name: rmqnamesrv
+    ports: 
+      - 9876:9876
+    volumes: 
+      - ./data/logs:/opt/logs 
+      - ./data/store:/opt/store 
+    networks: 
+        rmq: 
+          aliases: 
+            - rmqnamesrv
+
+  rmqbroker: 
+    image: foxiswho/rocketmq:broker
+    container_name: rmqbroker 
+    ports: 
+      - 10909:10909
+      - 10911:10911
+    volumes: 
+      - ./data/logs:/opt/logs
+      - ./data/store:/opt/store
+      - ./data/brokerconf/broker.conf:/etc/rocketmq/broker.conf
+    environment: 
+        NAMESRV_ADDR: "rmqnamesrv:9876"
+        JAVA_OPTS: " -Duser.home=/opt"
+        JAVA_OPT_EXT: "-server -Xms128m -Xmn128m"
+    command: mqbroker -c /etc/rocketmq/broker.conf
+    depends_on: 
+      - rmqnamesrv
+    networks: 
+      rmq: 
+        aliases: 
+          - rmqbroker
+
+  rmqconsole: 
+    image: styletang/rocketmq-console-ng
+    container_name: rmqconsole
+    ports: 
+      - 8088:8080
+    environment: 
+        JAVA_OPTS: "-Drocketmq.namesrv.addr=rmqnamesrv:9876 -Dcom.rocketmq.sendMessageWithVIPChannel=false"
+    depends_on: 
+      - rmqnamesrv
+    networks: 
+      rmq: 
+        aliases: 
+          - rmqconsole
+
+networks: 
+  rmq: 
+    name: rmq
+    driver: bridge
+```
+
+### Kafka
+
+```yaml
+version: '3'
+services:
+  kafka:
+    image: wurstmeister/kafka
+    container_name: kafka
+    ports:
+      - 9092:9092
+    # host ip
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: localhost
+      KAFKA_ZOOKEEPER_CONNECT: 172.23.51.10:2181
+    # always restart
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+```
+
+### Elasticsearch
+
+```yaml
+version: '3'
+services:
+    # search engine
+    elasticsearch:
+#        image: docker.elastic.co/elasticsearch/elasticsearch-oss:7.0.1
+        image: elasticsearch:7.9.0
+        container_name: elasticsearch
+        environment:
+            - discovery.type=single-node
+            - http.port=9200
+            - http.cors.enabled=true
+            - http.cors.allow-origin=http://localhost:1358
+            - http.cors.allow-origin=*
+            - http.cors.allow-origin=http://localhost:1358,http://127.0.0.1:1358
+            - http.cors.allow-headers=X-Requested-With,X-Auth-Token,Content-Type,Content-Length,Authorization
+            - http.cors.allow-credentials=false
+            - bootstrap.memory_lock=true
+            - 'ES_JAVA_OPTS=-Xms512m -Xmx512m'
+        volumes:
+            - ./data:/usr/share/elasticsearch/data
+        ports:
+            - '9200:9200'
+            - '9300:9300'
+    # elasticsearch browser
+    dejavu:
+        image: appbaseio/dejavu:3.2.3
+        container_name: dejavu
+        ports:
+            - '1358:1358'
+        links:
+            - elasticsearch
+```
