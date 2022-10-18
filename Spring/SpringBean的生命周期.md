@@ -4,7 +4,7 @@
 
 SpringBean的生命周期大体如下:
 
-1. Instantiation:实例化bean(完成构造器注入)
+1. Instantiation:实例化bean(完成构造器（依赖）注入)
 2. 依赖注入:属性(接口)注入,setter注入
 3. aware:beanName,beanFactory,applicationContext
 4. Initialization:初始化
@@ -14,7 +14,7 @@ SpringBean的生命周期大体如下:
 
 #### ApplicationContextInitializer
 
-这是整个spring容器在刷新之前初始化`ConfigurableApplicationContext`的回调接口，简单来说，就是在容器刷新之前调用此类的`initialize`方法。这个点允许被用户自己扩展。用户可以在整个spring容器还没被初始化之前做一些事情。
+这是整个spring容器在刷新之前初始化`ConfigurableApplicationContext`的回调接口，简单来说，就是在容器刷新之前调用此类的`initialize`方法。这个点允许被扩展。可以在整个spring容器还没被初始化之前做一些事情。
 
 使用场景:在最开始激活一些配置，或者利用这时候class还没被类加载器加载的时机，进行动态字节码注入等操作。
 
@@ -62,12 +62,12 @@ SpringBean的生命周期大体如下:
 | ------------------------------ | ----------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | BeanNameAware                  | 获取beanName                        | bean的初始化之前，也就是`postProcessBeforeInitialization`之前 | 在初始化bean之前拿到spring容器中注册的的beanName             |
 | BeanFactoryAware               | 获取`BeanFactory`对象               | bean的实例化之后，注入属性之前，也就是Setter之前             | 可以在bean实例化之后，但还未初始化之前，拿到 `BeanFactory`，在这个时候，可以对每个bean作特殊化的定制。也或者可以把`BeanFactory`拿到进行缓存，之后使用 |
-| ApplicationContextAware        | 获取`ApplicationContext`的扩展类    |                                                              | 获取任何在spring上下文注册的bean                             |
-| EnvironmentAware               | 获取`EnviromentAware`对象           |                                                              | 可以获取系统内所有参数,也可以通过注入的方式直接获取          |
-| EmbeddedValueResolverAware     | 获取`StringValueResolver`对象       |                                                              | 与@Value注解功能一样,用于获取配置属性                        |
-| ResourceLoaderAware            | 获取`ResourceLoader`对象            |                                                              | 可以获取classpath内所有的资源对                              |
-| ApplicationEventPublisherAware | 获取`ApplicationEventPublisher`对象 |                                                              | 可以用来发布事件，结合`ApplicationListener`来共同使用;也可以通过注入的方式获取 |
-| MessageSourceAware             | 获取`MessageSource`扩展类对象       |                                                              | 主要用来做国际化                                             |
+| ApplicationContextAware        | 获取`ApplicationContext`的扩展类    | bean实例化之后，初始化之前                                   | 获取任何在spring上下文注册的bean                             |
+| EnvironmentAware               | 获取`EnviromentAware`对象           | bean实例化之后，初始化之前                                   | 可以获取系统内所有参数,也可以通过注入的方式直接获取          |
+| EmbeddedValueResolverAware     | 获取`StringValueResolver`对象       | bean实例化之后，初始化之前                                   | 与@Value注解功能一样,用于获取配置属性                        |
+| ResourceLoaderAware            | 获取`ResourceLoader`对象            | bean实例化之后，初始化之前                                   | 可以获取classpath内所有的资源对                              |
+| ApplicationEventPublisherAware | 获取`ApplicationEventPublisher`对象 | bean实例化之后，初始化之前                                   | 可以用来发布事件，结合`ApplicationListener`来共同使用;也可以通过注入的方式获取 |
+| MessageSourceAware             | 获取`MessageSource`扩展类对象       | bean实例化之后，初始化之前                                   | 主要用来做国际化                                             |
 |                                |                                     |                                                              |                                                              |
 
 #### **@PostConstruct**
@@ -95,7 +95,7 @@ JSR250规范中的注解,触发点是在`postProcessBeforeInitialization`之后�
 
 #### **SmartInitializingSingleton**
 
-这个接口中只有一个方法`afterSingletonsInstantiated`，其作用是是 在spring容器管理的所有单例对象（非懒加载对象）初始化完成之后调用的回调接口。其触发时机为`postProcessAfterInitialization`之后。
+这个接口中只有一个方法`afterSingletonsInstantiated`，其作用是是在spring容器管理的所有单例对象（非懒加载对象）初始化完成之后调用的回调接口。其触发时机为`postProcessAfterInitialization`之后。
 
 使用场景：可以扩展此接口在对所有单例对象初始化完毕后，做一些后置的业务处理。
 
