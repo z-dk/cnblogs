@@ -4,6 +4,44 @@
 **@EnableAutoConfiguration**：开启自动配置，也可以通过exclude关闭
 **@ComponentScan**：配置扫描的包
 
+### Spring启动做了什么
+
+Spring的启动过程就是其IoC容器的启动过程，对于web程序，IoC容器启动过程即是建立上下文的过程，在web应用中，web容器会提供一个全局的ServletContext上下文环境，ServletContext上下文为Spring IoC提供了一个宿主环境。
+
+Spring的启动过程大致可以分为以下几个步骤：
+
+1. 创建一个BeanFactory，也就是IoC容器，用来存储和管理Bean。
+2. 创建一个BeanDefinitionReader，用来读取配置文件或注解，将需要创建Bean的类转换为BeanDefinition。
+3. 创建一个ClassPathBeanDefinitionScanner，用来扫描指定的包路径，将符合条件的类转换为BeanDefinition。
+4. 注册一些内置的Bean和后置处理器，例如Environment、ConfigurationClassPostProcessor等。
+5. 刷新容器，执行一系列的初始化操作，例如加载配置类、扫描组件、注册Bean、解析依赖、执行生命周期方法等。
+6. 启动容器，发布事件通知监听器，开始接收请求。
+
+### Spring注册bean的方式
+
+Spring有以下几种注册Bean的方式：
+
+- 使用XML配置文件，通过\<bean>标签定义Bean的属性和依赖。
+- 使用注解，通过@Component, @Repository, @Controller, @Service等注解标注类，让Spring自动扫描和注册Bean。
+- 使用@Bean注解，通过在配置类中定义方法，返回一个Bean对象，并用@Bean注解标注，让Spring管理该对象。
+- 使用@Import注解，通过在配置类中引入其他类或配置类，让Spring注册这些类为Bean。
+- 使用FactoryBean接口，通过实现该接口的getObject()方法，返回一个Bean对象，并用@Component或@Bean注解标注该类，让Spring管理该对象。
+- 使用BeanDefinitionRegistry接口，通过实现该接口的registerBeanDefinition()方法，手动向容器中注册一个BeanDefinition对象。
+
+**Spring注解和XML配置存在的兼容性和优先级:**
+
+Spring注解和XML配置的兼容性问题主要有以下几点：
+
+- 如果在XML配置文件中使用了context:component-scan标签，那么需要注意扫描的包路径是否和注解配置的包路径有重叠，否则可能会导致Bean的重复定义或覆盖。
+- 如果在XML配置文件中使用了**\<import>**标签，那么需要注意导入的其他XML配置文件是否和注解配置的类有冲突，否则可能会导致Bean的重复定义或覆盖。
+- 如果在XML配置文件中使用了**aop:config**标签，那么需要注意切面的定义是否和注解配置的切面有冲突，否则可能会导致切面的重复执行或失效。
+
+Spring注解和XML配置的优先级问题主要有以下几点：
+
+- 如果一个Bean同时在注解配置和XML配置中定义了，那么默认情况下，**XML配置会覆盖注解配置**。
+- 如果一个Bean在注解配置中使用了**@Primary或@Order**注解，那么它会优先于其他没有这些注解的Bean被选择。
+- 如果一个Bean在XML配置中使用了**primary="true"或depends-on="…"**属性，那么它会优先于其他没有这些属性的Bean被选择。
+
 ### SpringBoot自动配置的原理?
 自动配置的注解是@EnableAutoConfiguration，从上面的@Import注解可以找到加载自动配置的映射；
 SpringFactoriesLoader.loadFactoryNames方法会加载类路径及所有jar包下META-INF/spring.factories配置中映射的自动配置的类；
