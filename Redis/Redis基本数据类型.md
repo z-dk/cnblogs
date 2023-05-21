@@ -21,9 +21,19 @@ config get databases
 select 1
 # 设置默认0号数据库
 set db_number 0
+# 查看键值对的存储结构
+object encoding key
 ```
 
 ### String
+
+数据结构(int,embstr,raw)
+
+**int**:long类型的整数,如果执行一些命令而不再是整数,则编码转为raw,比如append追加字符
+
+**embstr**:只读的字符串,如果修改后将转为raw
+
+**raw**:字符串
 
 1. set key value　　
 2. get key 　　
@@ -34,6 +44,11 @@ set db_number 0
 7. append key value 将新的字符串加入到原来的字符串
 
 ### Hash
+
+数据结构:(**ziplist,hashtable**),使用ziplist的条件:
+
+- 所有键值对(键或值)长度都小于64字节
+- 键值对数量小于512个
 
 1. hset key field value　
 2. hget key field
@@ -47,17 +62,34 @@ set db_number 0
 
 ### List
 
+数据结构(**ziplist,linkedlist**)使用ziplist的条件:
+
+- 元素长度小于64字节
+- 元素数量小于512个
+
 1. lpush key node1...(把节点加入到链表左边，对应有rpush)
 2. lrange list start end(获取list从start到end的节点值)
 3. llen key(获取链表长度)　　
 
 ### Set
 
+数据结构(**intset,hashtable**)
+
+使用intset的情况:
+
+- 所有元素都是整数
+- 元素数量不超过512
+
 set集合是无序的，而且元素不能重复，每一个元素都为string类型
 
 1. sadd key member1...
 
 ### Zset
+
+数据结构(**ziplist,skiplist**),其中使用ziplist的情况:
+
+- 每个成员大小小于64字节
+- 成员数量小于128个
 
 有序集合，每一个元素多一个score是浮点数，元素唯一,但score可以相等
 
