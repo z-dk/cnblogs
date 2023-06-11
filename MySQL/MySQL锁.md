@@ -76,6 +76,9 @@
 
 #### MySQL是锁是如何实现的
 
+- **LBCC**（Lock-Base Concurrency Control）基于锁的并发控制；
+- **MVCC**（Multiversion Concurrency Control）多版本并发控制；
+
 **MVCC**:有了锁，当前事务没有写锁就不能修改数据，但还是能读的，而且读的时候，即使该行数据其他事务已修改且提交，还是可以重复读到同样的值。这就是**「MVCC，多版本的并发控制，Multi-Version Concurrency Control」**
 
 Innodb 中行记录的存储格式，有一些额外的字段：**「DATA_TRX_ID和DATA_ROLL_PTR」**。
@@ -116,6 +119,7 @@ Innodb 中行记录的存储格式，有一些额外的字段：**「DATA_TRX_ID
 | -                        | commit                             |
 | select * from dept       |                                    |
 | update dept set name="B" |                                    |
+| select * from dept       |                                    |
 | commit                   |                                    |
 
 期望结果为:事务2的A并未被修改为B,实际上被事务1的update修改了;事务1的两次查询数据一致,不会查出事务2插入的记录
@@ -129,10 +133,18 @@ Innodb 中行记录的存储格式，有一些额外的字段：**「DATA_TRX_ID
 但是，当事务1再次更新全表数据时，它就不再使用自己的视图来更新，而是使用最新的数据来更新。
 
 - 如果事务2插入的记录没有被其他事务加锁或修改，那么事务1就可以更新到该记录；
-
+- 更新后的第三次查询可以查到事务2插入的记录:该行的DATA_TRX_ID已经更新为事务1的事务id了,所以可以查到
 - 如果事务2插入的记录已经被其他事务加锁或修改，那么事务1就不能更新到该记录，可能会发生**锁等待或死锁**。
 
  **MySQL 可重复读的隔离级别只解决了读数据情况下的幻读问题。而对于修改的操作依旧存在幻读问题，`MVCC` 对于幻读的解决时不彻底的。**
+
+除了上面这一种场景会发生幻读现象之外，还有下面这个场景也会发生幻读现象。
+
+- T1 时刻：事务 A 先执行「快照读语句」：select * from t_test where id > 100 得到了 3 条记录。
+- T2 时刻：事务 B 往插入一个 id= 200 的记录并提交；
+- T3 时刻：事务 A 再执行「当前读语句」 select * from t_test where id > 100 for update 就会得到 4 条记录，此时也发生了幻读现象。
+
+**要避免这类特殊场景下发生幻读的现象的话，就是尽量在开启事务之后，马上执行 select ... for update 这类当前读的语句**，因为它会对记录加 next-key lock，从而避免其他事务插入一条新记录。**LBCC**
 
 **InnoDB行锁升级为表锁的情况**
 
@@ -165,3 +177,8 @@ Transaction 2: 更新表B -> 更新表A
 5. 如果出现死锁，可以用mysql> show engine innodb status命令来确定最后一个死锁产生的原因。返回结果中包括死锁相关事务的详细信息，如引发死锁的SQL语句，事务已经获得的锁，正在等待什么锁，以及被回滚的事务等。据此可以分析死锁产生的原因和改进措施。
 
 更多MySQL事务相关内容见[MySQL事务及事务隔离级别 ](https://www.cnblogs.com/z-dk/p/14533208.html)
+
+
+
+
+参考原文:[MySQL 可重复读隔离级别，完全解决幻读了吗？](https://xiaolincoding.com/mysql/transaction/phantom.html#%E7%AC%AC%E4%B8%80%E4%B8%AA%E5%8F%91%E7%94%9F%E5%B9%BB%E8%AF%BB%E7%8E%B0%E8%B1%A1%E7%9A%84%E5%9C%BA%E6%99%AF)
