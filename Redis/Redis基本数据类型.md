@@ -25,15 +25,23 @@ set db_number 0
 object encoding key
 ```
 
+Redis使用键值对保存数据,每次新增时至少会创建两个对象,一个是键对象,对象共享仅共享(0~9999的字符串)一个值对象,每个对象由**`redisObject`**结构表示:
+
+- **type**:对象类型(REDIS_STRING,REDIS_LIST,REDIS_HASH,REDIS_SET,REDIS_ZSET);用于类型检查,键总是字符串对象
+- **encoding**:编码,表明底层实现的数据结构(详细见[数据结构](https://www.cnblogs.com/z-dk/p/17487012.html))
+- **ptr**:指向底层实现数据结构的指针
+- **refcount**:引用计数,用于内存回收
+- **lru**:对象最后一次被命令访问的时间
+
 ### String
 
 数据结构(int,embstr,raw)
 
 **int**:long类型的整数,如果执行一些命令而不再是整数,则编码转为raw,比如append追加字符
 
-**embstr**:只读的字符串,如果修改后将转为raw
+**embstr**:只读的字符串(无修改程序,需转为raw后再执行修改),长度小于等于39字节,一次内存分配连续空间保存redisObject和sdsstr,如果修改后将转为raw
 
-**raw**:字符串
+**raw**:字符串,会调用2次内存分配函数完成redisObject和sdsstr的空间分配;内存释放也一样
 
 1. set key value　　
 2. get key 　　
@@ -62,7 +70,7 @@ object encoding key
 
 ### List
 
-数据结构(**ziplist,linkedlist**)使用ziplist的条件:
+数据结构(**ziplist,linkedlist**)使用`ziplist`的条件:
 
 - 元素长度小于64字节
 - 元素数量小于512个
@@ -75,7 +83,7 @@ object encoding key
 
 数据结构(**intset,hashtable**)
 
-使用intset的情况:
+使用`intset`的情况:
 
 - 所有元素都是整数
 - 元素数量不超过512
@@ -86,12 +94,14 @@ set集合是无序的，而且元素不能重复，每一个元素都为string�
 
 ### Zset
 
-数据结构(**ziplist,skiplist**),其中使用ziplist的情况:
+数据结构(**ziplist,skiplist+字典**),其中使用`ziplist`的情况(两个挨着的节点保存一个是成员,一个是分值):
 
 - 每个成员大小小于64字节
 - 成员数量小于128个
 
 有序集合，每一个元素多一个score是浮点数，元素唯一,但score可以相等
+
+skiplist结构的zset会使用`字典`保存元素及其分值(用于O(1)查找元素分值),用`跳跃表`完成(ZRANK,ZRANG)操作
 
 1. zadd key score1 value1...　　
 2. zrange key start stop(按分值由小到大返回成员) 
